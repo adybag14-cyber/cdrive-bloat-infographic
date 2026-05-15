@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C: Storage Atlas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071016;
+      --ink: #eef7f8;
+      --muted: #9cb2ba;
+      --panel: #0d1b22;
+      --panel-2: #10252e;
+      --line: rgba(255,255,255,.12);
+      --hot: #ff6b6b;
+      --cyan: #56ccf2;
+      --green: #6fcf97;
+      --gold: #f2c94c;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        linear-gradient(135deg, rgba(255,107,107,.16), transparent 28%),
+        linear-gradient(230deg, rgba(86,204,242,.12), transparent 36%),
+        var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .shell {
+      width: min(1480px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      padding: 20px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(34px, 6vw, 72px);
+      line-height: .9;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin-top: 12px;
+      color: var(--muted);
+      max-width: 760px;
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(150px, 1fr));
+      gap: 10px;
+      min-width: min(430px, 100%);
+    }
+
+    .metric {
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: rgba(13, 27, 34, .72);
+      border-radius: 8px;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 22px;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    section {
+      border: 1px solid var(--line);
+      background: rgba(13, 27, 34, .78);
+      border-radius: 8px;
+      min-width: 0;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      padding: 14px;
+      min-height: 560px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 540px;
+      border-radius: 6px;
+      background: #081219;
+    }
+
+    #tip {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      max-width: min(420px, calc(100vw - 50px));
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(5, 12, 16, .94);
+      box-shadow: 0 18px 40px rgba(0,0,0,.35);
+      color: var(--ink);
+      z-index: 3;
+    }
+
+    #tip strong { display: block; margin-bottom: 4px; }
+    #tip small { color: var(--muted); }
+
+    .cats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .cat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255,255,255,.035);
+      min-width: 0;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 7px;
+      vertical-align: baseline;
+    }
+
+    .cat b {
+      display: block;
+      margin-top: 7px;
+      font-size: 18px;
+    }
+
+    .cat span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .files {
+      padding: 8px 12px 12px;
+      max-height: 820px;
+      overflow: auto;
+    }
+
+    .file-row {
+      display: grid;
+      grid-template-columns: 46px minmax(0, 1fr) minmax(94px, auto);
+      gap: 12px;
+      align-items: start;
+      padding: 12px 4px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .rank {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      padding-top: 2px;
+    }
+
+    .file-name {
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .owner {
+      color: var(--muted);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .path {
+      color: #78919a;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      margin-top: 4px;
+    }
+
+    .bar {
+      height: 7px;
+      background: rgba(255,255,255,.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: var(--w);
+      background: var(--c);
+    }
+
+    .size {
+      font-weight: 800;
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 7px;
+    }
+
+    .owner-list {
+      padding: 12px 14px 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .owner-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 8px;
+      padding: 11px 12px;
+      background: rgba(255,255,255,.03);
+    }
+
+    .owner-row b {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .owner-row span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .loading {
+      min-height: 70vh;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    @media (max-width: 980px) {
+      header, .grid {
+        grid-template-columns: 1fr;
+      }
+      .status {
+        min-width: 0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .canvas-wrap { min-height: 430px; }
+      canvas { height: 400px; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { width: min(100vw - 20px, 1480px); }
+      .status { grid-template-columns: 1fr; }
+      .file-row {
+        grid-template-columns: 36px minmax(0, 1fr);
+      }
+      .size {
+        grid-column: 2;
+        text-align: left;
+      }
+      .hint { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading">Preparing storage atlas...</div>
+  <main class="shell" id="app" hidden>
+    <header>
+      <div>
+        <h1>C: Storage Atlas</h1>
+        <div class="subtitle" id="subtitle"></div>
+      </div>
+      <div class="status">
+        <div class="metric"><span>Drive used</span><b id="drive-used">-</b></div>
+        <div class="metric"><span>Drive free</span><b id="drive-free">-</b></div>
+        <div class="metric"><span>Accessible scan</span><b id="scan-total">-</b></div>
+        <div class="metric"><span>Skipped</span><b id="skipped">-</b></div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section>
+        <div class="section-head">
+          <h2>Largest owners</h2>
+          <div class="hint" id="treemap-hint"></div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="treemap"></canvas>
+          <div id="tip"></div>
+        </div>
+        <div class="cats" id="categories"></div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Biggest files</h2>
+          <div class="hint">largest to smallest</div>
+        </div>
+        <div class="files" id="files"></div>
+      </section>
+    </div>
+
+    <section style="margin-top:18px">
+      <div class="section-head">
+        <h2>Likely bloat zones</h2>
+        <div class="hint">grouped by app, game, cache, model, media, or system area</div>
+      </div>
+      <div class="owner-list" id="owners"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+    const countFmt = new Intl.NumberFormat();
+    let boxes = [];
+    let payload = null;
+
+    function bytes(n) {
+      const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+      let value = Number(n || 0);
+      let idx = 0;
+      while (value >= 1024 && idx < units.length - 1) {
+        value /= 1024;
+        idx++;
+      }
+      return `${fmt.format(value)} ${units[idx]}`;
+    }
+
+    function pct(part, total) {
+      if (!total) return "0%";
+      return `${fmt.format((part / total) * 100)}%`;
+    }
+
+    function esc(text) {
+      return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function setText(id, text) {
+      $(id).textContent = text;
+    }
+
+    function renderSummary(data) {
+      const used = data.disk && data.disk.ok ? data.disk.used : data.totalAccessibleBytes;
+      const free = data.disk && data.disk.ok ? data.disk.free : 0;
+      setText("drive-used", bytes(used));
+      setText("drive-free", data.disk && data.disk.ok ? bytes(free) : "unknown");
+      setText("scan-total", bytes(data.totalAccessibleBytes));
+      const guarded = Number(data.guardedSkips || 0);
+      setText("skipped", guarded > 0 ? `${countFmt.format(data.skipped)} (${countFmt.format(guarded)} guarded)` : countFmt.format(data.skipped));
+      const guardedText = guarded > 0 ? ` ${countFmt.format(guarded)} protected system subtrees were skipped deliberately to keep the report responsive.` : "";
+      setText("subtitle", `${data.root} scanned ${countFmt.format(data.scannedFiles)} files and ${countFmt.format(data.scannedDirs)} folders in ${(data.elapsedMs / 1000).toFixed(1)} seconds. Accessible files account for ${bytes(data.totalAccessibleBytes)}.${guardedText}`);
+      setText("treemap-hint", `${data.groups.length} largest groups shown`);
+    }
+
+    function renderCategories(data) {
+      const cats = data.categoryTotals
+        .filter((c) => c.bytes > 0)
+        .sort((a, b) => b.bytes - a.bytes)
+        .slice(0, 10);
+      $("categories").innerHTML = cats.map((cat) => `
+        <div class="cat">
+          <span><i class="swatch" style="background:${cat.color}"></i>${esc(cat.name)}</span>
+          <b>${bytes(cat.bytes)}</b>
+          <span>${pct(cat.bytes, data.totalAccessibleBytes)} of accessible scan</span>
+        </div>
+      `).join("");
+    }
+
+    function renderFiles(data) {
+      const max = data.topFiles[0]?.bytes || 1;
+      $("files").innerHTML = data.topFiles.slice(0, 80).map((file, idx) => {
+        const width = Math.max(2, (file.bytes / max) * 100);
+        return `
+          <div class="file-row">
+            <div class="rank">${idx + 1}</div>
+            <div>
+              <div class="file-name">${esc(file.name)}</div>
+              <div class="owner">${esc(file.owner)}</div>
+              <div class="bar"><i style="--w:${width}%;--c:${file.color}"></i></div>
+              <div class="path">${esc(file.path)}</div>
+              <div class="pill"><i class="swatch" style="background:${file.color}"></i>${esc(file.category)}</div>
+            </div>
+            <div class="size">${bytes(file.bytes)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderOwners(data) {
+      const max = data.groups[0]?.bytes || 1;
+      $("owners").innerHTML = data.groups.slice(0, 36).map((group) => {
+        const width = Math.max(2, (group.bytes / max) * 100);
+        return `
+          <div class="owner-row">
+            <div>
+              <b>${esc(group.name)}</b>
+              <span><i class="swatch" style="background:${group.color}"></i>${esc(group.category)} - ${countFmt.format(group.files)} files - largest file ${bytes(group.largestFile)}</span>
+              <div class="bar"><i style="--w:${width}%;--c:${group.color}"></i></div>
+            </div>
+            <div class="size">${bytes(group.bytes)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function splitTreemap(items, x, y, w, h, depth = 0) {
+      if (!items.length || w <= 1 || h <= 1) return;
+      if (items.length === 1 || depth > 18) {
+        boxes.push({ ...items[0], x, y, w, h });
+        return;
+      }
+      const total = items.reduce((s, item) => s + item.bytes, 0);
+      let acc = 0;
+      let split = 1;
+      for (; split < items.length; split++) {
+        if (acc + items[split - 1].bytes >= total / 2) break;
+        acc += items[split - 1].bytes;
+      }
+      const left = items.slice(0, split);
+      const right = items.slice(split);
+      const leftSum = left.reduce((s, item) => s + item.bytes, 0);
+      const ratio = total ? leftSum / total : .5;
+      if (w >= h) {
+        const leftW = Math.max(1, Math.round(w * ratio));
+        splitTreemap(left, x, y, leftW, h, depth + 1);
+        splitTreemap(right, x + leftW, y, w - leftW, h, depth + 1);
+      } else {
+        const topH = Math.max(1, Math.round(h * ratio));
+        splitTreemap(left, x, y, w, topH, depth + 1);
+        splitTreemap(right, x, y + topH, w, h - topH, depth + 1);
+      }
+    }
+
+    function drawTreemap(data) {
+      const canvas = $("treemap");
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * scale));
+      canvas.height = Math.max(1, Math.floor(rect.height * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      boxes = [];
+      splitTreemap(data.groups.slice(0, 48), 0, 0, rect.width, rect.height);
+      for (const box of boxes) {
+        ctx.fillStyle = box.color;
+        ctx.globalAlpha = .86;
+        ctx.fillRect(box.x + 2, box.y + 2, Math.max(0, box.w - 4), Math.max(0, box.h - 4));
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(255,255,255,.20)";
+        ctx.strokeRect(box.x + 2.5, box.y + 2.5, Math.max(0, box.w - 5), Math.max(0, box.h - 5));
+        if (box.w > 120 && box.h > 56) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(box.x + 8, box.y + 8, box.w - 16, box.h - 16);
+          ctx.clip();
+          ctx.fillStyle = "#061017";
+          ctx.font = "700 14px Segoe UI, sans-serif";
+          ctx.fillText(box.name, box.x + 12, box.y + 25);
+          ctx.font = "600 12px Segoe UI, sans-serif";
+          ctx.fillText(bytes(box.bytes), box.x + 12, box.y + 44);
+          ctx.restore();
+        }
+      }
+    }
+
+    function attachTooltip() {
+      const canvas = $("treemap");
+      const tip = $("tip");
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const hit = boxes.find((box) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h);
+        if (!hit) {
+          tip.style.display = "none";
+          return;
+        }
+        tip.innerHTML = `<strong>${esc(hit.name)}</strong><small>${esc(hit.category)} - ${bytes(hit.bytes)} - ${countFmt.format(hit.files)} files</small>`;
+        tip.style.display = "block";
+        tip.style.left = `${Math.min(rect.width - 12, x + 16)}px`;
+        tip.style.top = `${Math.max(8, y + 16)}px`;
+      });
+      canvas.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+    }
+
+    async function boot() {
+      const res = await fetch("/api/scan", { cache: "no-store" });
+      payload = await res.json();
+      renderSummary(payload);
+      renderCategories(payload);
+      renderFiles(payload);
+      renderOwners(payload);
+      $("loading").hidden = true;
+      $("app").hidden = false;
+      drawTreemap(payload);
+      attachTooltip();
+    }
+
+    window.addEventListener("resize", () => {
+      if (payload) drawTreemap(payload);
+    });
+
+    boot().catch((err) => {
+      $("loading").textContent = `Could not load scan data: ${err.message}`;
+    });
+  </script>
+</body>
+</html>

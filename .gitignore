@@ -1,0 +1,9 @@
+.zig/
+.zig-cache/
+zig-cache/
+zig-out/
+run/
+run-test*/
+*.exe
+*.pdb
+*.obj
