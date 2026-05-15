@@ -84,6 +84,7 @@ const Config = struct {
     port: u16 = default_port,
     file_limit: usize = default_file_limit,
     group_limit: usize = default_group_limit,
+    json_path: ?[]const u8 = null,
 };
 
 const Owner = struct {
@@ -103,11 +104,16 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const config = try parseArgs(args);
 
-    std.debug.print("Scanning {s} for the largest accessible files...\n", .{config.root});
-    var scan = try scanDrive(allocator, io, config.root, config.file_limit);
-    defer cleanupScan(&scan, allocator);
-
-    const json = try buildJson(allocator, &scan, config.group_limit);
+    var json: []u8 = undefined;
+    if (config.json_path) |json_path| {
+        std.debug.print("Serving saved scan JSON from {s}...\n", .{json_path});
+        json = try Io.Dir.cwd().readFileAlloc(io, json_path, allocator, .limited(128 * 1024 * 1024));
+    } else {
+        std.debug.print("Scanning {s} for the largest accessible files...\n", .{config.root});
+        var scan = try scanDrive(allocator, io, config.root, config.file_limit);
+        defer cleanupScan(&scan, allocator);
+        json = try buildJson(allocator, &scan, config.group_limit);
+    }
     defer allocator.free(json);
 
     try serve(io, config.port, json);
@@ -130,9 +136,13 @@ fn parseArgs(args: []const [:0]const u8) !Config {
         } else if (std.mem.eql(u8, arg, "--group-limit") and i + 1 < args.len) {
             i += 1;
             cfg.group_limit = try std.fmt.parseInt(usize, args[i], 10);
+        } else if (std.mem.eql(u8, arg, "--json") and i + 1 < args.len) {
+            i += 1;
+            cfg.json_path = args[i];
         } else if (std.mem.eql(u8, arg, "--help")) {
             std.debug.print(
                 \\Usage: cdrive-bloat-infographic [--root C:\] [--port 8277] [--file-limit 240] [--group-limit 140]
+                \\       cdrive-bloat-infographic --json run\last-scan.json [--port 8277]
                 \\
             , .{});
             std.process.exit(0);
@@ -583,14 +593,11 @@ fn handleConnection(io: Io, stream: net.Stream, json: []const u8) !void {
     var connection_writer = stream.writer(io, &send_buffer);
     var server: http.Server = .init(&connection_reader.interface, &connection_writer.interface);
 
-    while (true) {
-        var request = server.receiveHead() catch |err| switch (err) {
-            error.HttpConnectionClosing => return,
-            else => return err,
-        };
-        try route(&request, json);
-        if (!request.head.keep_alive) return;
-    }
+    var request = server.receiveHead() catch |err| switch (err) {
+        error.HttpConnectionClosing => return,
+        else => return err,
+    };
+    try route(&request, json);
 }
 
 fn route(request: *http.Server.Request, json: []const u8) !void {
@@ -599,6 +606,7 @@ fn route(request: *http.Server.Request, json: []const u8) !void {
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/html; charset=utf-8" },
                 .{ .name = "cache-control", .value = "no-store" },
+                .{ .name = "connection", .value = "close" },
             },
         });
     } else if (std.mem.eql(u8, request.head.target, "/api/scan")) {
@@ -606,14 +614,21 @@ fn route(request: *http.Server.Request, json: []const u8) !void {
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "application/json; charset=utf-8" },
                 .{ .name = "cache-control", .value = "no-store" },
+                .{ .name = "connection", .value = "close" },
             },
         });
     } else if (std.mem.eql(u8, request.head.target, "/healthz")) {
         try request.respond("{\"ok\":true}", .{
-            .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }},
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "application/json" },
+                .{ .name = "connection", .value = "close" },
+            },
         });
     } else {
-        try request.respond("not found", .{ .status = .not_found });
+        try request.respond("not found", .{
+            .status = .not_found,
+            .extra_headers = &.{.{ .name = "connection", .value = "close" }},
+        });
     }
 }
 

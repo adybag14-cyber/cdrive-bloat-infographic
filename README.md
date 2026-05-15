@@ -35,6 +35,12 @@ The scanner skips inaccessible paths and reports the skipped count. It also guar
 
 Open `http://127.0.0.1:8277/` after the process prints `Infographic ready`.
 
+To serve a previously saved API payload without rescanning:
+
+```powershell
+.\zig-out\bin\cdrive-bloat-infographic.exe --json run\last-scan.json --port 8277
+```
+
 ## What It Shows
 
 - Largest individual files, biggest to smallest.
